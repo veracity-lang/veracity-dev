@@ -5,7 +5,7 @@ int main(int argc, string[] argv) {
     int n = int_of_string(argv[3]);
   
 
-    commute _ {
+    commute (x < n) { /* true */
         pre: (c > 0)
         { 
             /* while(x<n) { c = c + 1; x = x + 1; } */
@@ -24,7 +24,7 @@ int main(int argc, string[] argv) {
         post: (c > 0)
     }
 
-    commute _ {
+    commute _ { /* !(1 > c) && !(0 == c) && !(c == 1) || c == 1 */
         pre: (!(0 == c + 1))
         { 
             /* while(x<n) { c = c + 1; x = x + 1; } */
