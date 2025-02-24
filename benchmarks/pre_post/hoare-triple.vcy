@@ -1,0 +1,19 @@
+int main(int argc, string[] argv) {
+    int x = int_of_string(argv[1]);
+    int n = int_of_string(argv[2]);
+    int[] arr = new int[n];
+    int j = 0;
+
+    commute (true) {
+        pre: (j >= 0 && arr[j] > 1 && j < n && x >= n)
+        { 
+            
+        }
+        {      
+            arr[j] = arr[j] + 1;
+        }
+        post: (j >= 0 && arr[j] > 1 && j < n && x >= n)
+    }
+
+    return 0;
+}
