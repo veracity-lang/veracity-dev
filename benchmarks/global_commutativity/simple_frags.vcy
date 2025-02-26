@@ -1,0 +1,25 @@
+commutativity {
+    {f1(c)}, {f2(c)}: (c > 0)
+}
+
+int main(int argc, string[] argv) {
+    int c =  int_of_string(argv[1]); 
+    int x =  int_of_string(argv[1]); 
+    int y =  int_of_string(argv[1]); 
+
+    f1:{ 
+        if( c>0 ) { c = c - 1; }
+        busy_wait(n);
+        x = 10;
+    }
+
+    y = x;
+    busy_wait(n);
+
+    f2:{ 
+        c = c + 1;
+        busy_wait(n);
+    }
+    
+    return 0;
+}

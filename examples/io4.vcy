@@ -1,0 +1,19 @@
+int md5(string input) { return 0; }
+
+int main(int argc, string[] argv) {
+	out_channel i = open_write(fname);
+	string fname1 = "temp1";
+	string fname2 = "temp2";
+	string fname3 = "temp3";
+	int inttemp = 0;
+	string stringtemp = "";
+	commute _ { /* Can verify fname2 != fname3 as correct. */
+		{ cp(fname1, fname2);
+		 }
+		{ i = open_read(fname3);
+		  stringtemp = read_line(i);
+		  inttemp = md5(stringtemp);
+		  close(i); }
+	}
+	return 0;
+}

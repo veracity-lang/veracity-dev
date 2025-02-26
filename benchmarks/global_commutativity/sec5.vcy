@@ -1,0 +1,12 @@
+commutativity {
+    {f(x)}, {g(xx,y)}: ( y > x + 1 )
+}
+
+int main(int argc, string[] argv) {
+    int x = int_of_string(argv[1]);
+    int y = int_of_string(argv[2]);
+
+    f(x):{ x = x + 1; }
+    if (x<y) { g(x,y):{ x = y; } }
+    return 1;
+}

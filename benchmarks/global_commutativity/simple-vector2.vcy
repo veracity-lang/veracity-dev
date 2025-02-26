@@ -1,0 +1,33 @@
+commutativity {
+    {f1(c)}, {f2(c)}: (true)
+}
+
+int main(int argc, string[] argv) {
+    int size = 1000;
+
+    int[] x = new int[size];
+    int[] y = new int[size];
+    int[] z = new int[size];
+    int sum = 0;
+    for(int i = 0; i < size; i = i+1;) {
+        x[i] = havoc();
+    }
+
+    f1:{ 
+        for(int i = 0; i < size; i = i+1;) {
+            y[i] = x[i] * x[i];
+        }
+    }
+    
+    for(int i = 0; i < size; i = i+1;) {
+        sum = sum + y[i];
+    }
+
+    f2:{ 
+        for(int i = 0; i < size; i = i+1;) {
+            x[i] = abs(x[i]);
+        }
+    }
+    
+    return 0;
+}

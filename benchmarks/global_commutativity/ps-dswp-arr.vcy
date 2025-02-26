@@ -1,0 +1,34 @@
+commutativity {
+    
+}
+
+int main(int argc, string[] argv) {
+    int[] fileIdList = new int[100];
+    int[] visited = new int[100];
+    string[] id_to_name = new string[100];
+    int p = 0;
+    int id = 0;
+    string fname = "";
+    string buf = "deadbeef";
+    in_channel inch;
+    int sum = 0;
+
+    while(p != 100){
+        id = fileIdList[p];
+        if(!visited[id]){
+            visited[id] = true;
+            fname = id_to_name[id];
+            /* subtask. input: fname */
+            q = p_inner_list;
+            inch = open_read(fname); 
+            buf = read_line(inch); 
+            close(inch);
+            sum = sum + 0; /* md5(buf) */
+        }
+        id = id + 1;
+    }
+    
+    return 0;
+}
+
+

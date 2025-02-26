@@ -1,0 +1,125 @@
+/*
+./vcy.exe interp ../benchmarks/global_commutativity/vote-infer.vcy --dswp --debug
+*/
+commutativity {
+   {vote1(voterID_1,proposal_1)}, {vote2(voterID_2,proposal_2)}: (voterID_1 != voterID_2);
+   {vote1(voterID_1,proposal_1)}, {vote3(voterID_2,proposal_2)}: (voterID_1 != voterID_2);
+   {vote1(voterID_1,proposal_1)}, {vote4(voterID_2,proposal_2)}: (voterID_1 != voterID_2);
+   {vote2(voterID_1,proposal_1)}, {vote3(voterID_2,proposal_2)}: (voterID_1 != voterID_2);
+   {vote2(voterID_1,proposal_1)}, {vote4(voterID_2,proposal_2)}: (voterID_1 != voterID_2);
+   {vote3(voterID_1,proposal_1)}, {vote4(voterID_2,proposal_2)}: (voterID_1 != voterID_2)
+}
+
+hashtable[int,int] voter_weight = new hashtable_seq[int,int];
+hashtable[int,int] voter_voted = new hashtable_seq[int,int];
+hashtable[int,int] voter_vote = new hashtable_seq[int,int];
+int r_vote1 = 0;
+int r_vote2 = 0;
+int r_vote3 = 0;
+int r_vote4 = 0;
+
+int vote1_voterID = 11;
+int vote2_voterID = 12;
+int vote3_voterID = 13;
+int vote4_voterID = 14;
+int vote5_voterID = 15;
+int vote1_proposal = 1;
+int vote2_proposal = 2;
+int vote3_proposal = 3;
+int vote4_proposal = 4;
+int vote5_proposal = 5;
+int scalingfactor = 0;
+
+int main(int argc, string[] argv) {
+    scalingfactor = 1000 * int_of_string(argv[1]);
+
+
+    /* https://docs.soliditylang.org/en/latest/solidity-by-example.html */
+   vote1(vote1_voterID,vote1_proposal):{
+        r_vote1 = 0;
+        busy_wait(scalingfactor);
+        int weight = ht_get(voter_weight,vote1_voterID);
+        if (weight != 0) {
+            r_vote1 = -1;
+        } else {
+            int voted = ht_get(voter_voted,vote1_voterID);
+            if(voted == 1) {
+                r_vote1 = -1;
+            } else {
+                ht_put(voter_voted,vote1_voterID,1);
+                ht_put(voter_vote,vote1_voterID,vote1_proposal);
+                int curVotes = ht_get(proposals,vote1_proposal);
+                ht_put(proposals,vote1_proposal,curVotes + weight);
+            }
+        }
+/*
+        Voter storage sender = voters[msg.sender];
+        require(sender.weight != 0, "Has no right to vote");
+        require(!sender.voted, "Already voted.");
+        sender.voted = true;
+        sender.vote = proposal;
+
+        // If `proposal` is out of the range of the array,
+        // this will throw automatically and revert all
+        // changes.
+        proposals[proposal].voteCount += sender.weight;
+*/
+    }
+
+  vote2(vote2_voterID,vote2_proposal):{
+        r_vote2 = 0;
+        busy_wait(scalingfactor);
+        int weight = ht_get(voter_weight,vote2_voterID);
+        if (weight != 0) {
+            r_vote2 = -1;
+        } else {
+            int voted = ht_get(voter_voted,vote2_voterID);
+            if(voted == 1) {
+                r_vote2 = -1;
+            } else {
+                ht_put(voter_voted,vote2_voterID,1);
+                ht_put(voter_vote,vote2_voterID,vote2_proposal);
+                int curVotes = ht_get(proposals,vote2_proposal);
+                ht_put(proposals,vote2_proposal,curVotes + weight);
+            }
+        }
+    }
+  vote3(vote3_voterID,vote3_proposal):{
+        r_vote3 = 0;
+        busy_wait(scalingfactor);
+        int weight = ht_get(voter_weight,vote3_voterID);
+        if (weight != 0) {
+            r_vote3 = -1;
+        } else {
+            int voted = ht_get(voter_voted,vote3_voterID);
+            if(voted == 1) {
+                r_vote3 = -1;
+            } else {
+                ht_put(voter_voted,vote3_voterID,1);
+                ht_put(voter_vote,vote3_voterID,vote3_proposal);
+                int curVotes = ht_get(proposals,vote3_proposal);
+                ht_put(proposals,vote3_proposal,curVotes + weight);
+            }
+        }
+    }
+  vote4(vote4_voterID,vote4_proposal):{
+        r_vote4 = 0;
+        busy_wait(scalingfactor);
+        int weight = ht_get(voter_weight,vote4_voterID);
+        if (weight != 0) {
+            r_vote4 = -1;
+        } else {
+            int voted = ht_get(voter_voted,vote4_voterID);
+            if(voted == 1) {
+                r_vote4 = -1;
+            } else {
+                ht_put(voter_voted,vote4_voterID,1);
+                ht_put(voter_vote,vote4_voterID,vote4_proposal);
+                int curVotes = ht_get(proposals,vote4_proposal);
+                ht_put(proposals,vote4_proposal,curVotes + weight);
+            }
+        }
+    }
+
+    return 1;
+}

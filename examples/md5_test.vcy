@@ -1,0 +1,11 @@
+int main(int argc, string[] argv) {
+    in_channel i = open_read(argv[1]);
+    string s = read_line(i);
+    print(s);
+    print("\n");
+    print(string_of_int(md5_lower(s)));
+    print("\n");
+    print(string_of_int(md5_upper(s)));
+    print("\n");
+    return 0;
+}

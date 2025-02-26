@@ -1,0 +1,26 @@
+commutativity {
+    {f1(files,i_1)}, {f2(files,i_2)}: _
+}
+
+
+int main(int argc, string[] argv) {
+    int[] files = new int[10];
+    int f = 0;
+    int g = 0;
+    int i = 5;
+    int i_1 = 5;
+    int i_2 = 3;
+    
+    f1(files,i):{ 
+        f = files[i];
+        f = f + 10;
+        files[i] = f;
+    }
+    f2(files,i):{ 
+        g = files[i];
+        g = g + 10;
+        files[i] = g;
+    }
+    
+    return 0;
+}

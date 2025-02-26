@@ -70,10 +70,13 @@ module AstPP = struct
     begin match l with
       | []    -> ()
       | [h]   -> pp fmt h
-      | h::tl -> pp fmt h; sep ();
+      | h::tl -> pp fmt h; sep fmt;
               print_list_aux fmt sep pp tl
     end
 
+  let print_comma_sep_aux fmt = 
+    pp_print_string fmt ","; pp_print_space fmt ()
+    
   let rec print_ty_aux fmt t =
     let pps = pp_print_string fmt in
     match t with
@@ -81,8 +84,10 @@ module AstPP = struct
     | TInt   -> pps "int"
     | TVoid  -> pps "void"
     | TStr   -> pps "string"
-    | TChanR -> raise @@ NotImplemented "TChanR pretty print"
-    | TChanW -> raise @@ NotImplemented "TChanW pretty print"
+    (* | TChanR -> raise @@ NotImplemented "TChanR pretty print"
+    | TChanW -> raise @@ NotImplemented "TChanW pretty print" *)
+    | TChanR -> pps "TChanR"
+    | TChanW -> pps "TChanW"
     | THashTable (tyk, tyv) -> pps "hashtable["; print_ty_aux fmt tyk; pps ", "; print_ty_aux fmt tyv; pps "]"
     | TStruct sid -> pps sid
     | TArr ty -> print_ty_aux fmt ty; pps "[]"
@@ -102,7 +107,7 @@ module AstPP = struct
           pps "new "; print_ty_aux fmt ty; pps "[]";
           pps "{";
           pp_open_hbox fmt ();
-          print_list_aux fmt (fun () -> pps ","; pp_print_space fmt()) (print_exp_aux 0) vs;
+          print_list_aux fmt print_comma_sep_aux (print_exp_aux 0) vs;
           pp_close_box fmt ();
           pps "}";
         end
@@ -164,7 +169,7 @@ module AstPP = struct
     pps l;
     pp_open_hvbox fmt 0;
     print_list_aux fmt
-      (fun () -> pps ","; pp_print_space fmt())
+      print_comma_sep_aux
       (fun fmt -> fun e -> print_exp_aux 0 fmt e) es;
     pp_close_box fmt ();
     pps r
@@ -178,16 +183,33 @@ module AstPP = struct
     ppsp (); pps "="; ppsp ();
     print_exp_aux 0 fmt init; pps semi;
     pp_close_box fmt ()
+    
+  let print_blocklabel_aux fmt ((id, explist): blocklabel) = 
+    match explist with
+    | None -> print_id_aux fmt id;
+    | Some lbls ->
+      let pps = pp_print_string fmt in
+      print_id_aux fmt id;
+      pps "(";
+      print_list_aux fmt print_comma_sep_aux (print_exp_aux 0) lbls;
+      pps ")"
+      
+  let print_arglist_aux fmt args =
+    print_list_aux fmt print_comma_sep_aux
+        (fun fmt -> fun (t, id) ->
+          print_ty_aux fmt t;
+          pp_print_space fmt ();
+          print_id_aux fmt id
+      ) args
 
   let rec print_block_aux fmt (b : block node) =
     let pps = pp_print_string fmt in
-    let ppsp = pp_print_space fmt in
     let ppnl = pp_force_newline fmt in
 
     if (List.length b.elt) > 0 then
       begin pps "{"; ppnl (); pps "  ";
             pp_open_vbox fmt 0;
-            print_list_aux fmt (fun () -> ppsp ()) print_stmt_aux b.elt;
+            print_list_aux fmt (flip pp_print_space ()) print_stmt_aux b.elt;
             pp_close_box fmt ();
             ppnl (); pps "}"
       end
@@ -238,7 +260,7 @@ module AstPP = struct
 
       | For(decls, eo, so, body) ->
         pps "for ("; pp_open_hvbox fmt 0;
-          print_list_aux fmt (fun () -> pps ","; ppsp ()) (print_vdecl_aux "") decls;
+          print_list_aux fmt print_comma_sep_aux (print_vdecl_aux "") decls;
           pps ";"; ppsp ();
         begin match eo with
           | None -> ();
@@ -277,17 +299,27 @@ module AstPP = struct
         pps "assume("; print_exp_aux 0 fmt e; pps ");"
       | Havoc(id) ->
         pps "havoc "; pps id; pps ";"
+      | SBlock(blocklabel, block) -> begin match blocklabel with
+          | None -> ()
+          | Some bl -> print_blocklabel_aux fmt bl
+        end;
+        print_block_aux fmt block
+      | SendDep(dep, varlist) ->
+        pps (Printf.sprintf "SendDep(%d, " dep);
+        print_arglist_aux fmt varlist;
+        pps ")"
+      | SendEOP(t) ->
+        pps (Printf.sprintf "SendEOP(%d)" t);
     end
 
   let print_mdecl_aux fmt {elt={pure; mrtyp; mname; args; body};_} = (* TODO: doesn't use pure *)
     let pps = pp_print_string fmt in
-    let ppsp = pp_print_space fmt in
     let ppnl = pp_force_newline fmt in
 
     print_ty_aux fmt mrtyp;
     pps @@ Printf.sprintf " %s(" mname;
     pp_open_hbox fmt ();
-    print_list_aux fmt (fun () -> pps ","; ppsp ())
+    print_list_aux fmt print_comma_sep_aux
       (fun fmt -> fun (t, id) ->
         print_ty_aux fmt t;
         pps " ";
@@ -320,11 +352,29 @@ module AstPP = struct
     pps "}";
     pp_close_box fmt ()
 
+  let print_group_commute_aux fmt (gc: group_commute node) =
+    let pps = pp_print_string fmt in
+    let (bls, phi) = gc.elt in 
+    print_list_aux fmt print_comma_sep_aux (fun fmt -> fun com_frag -> 
+      pps "{";
+      print_list_aux fmt print_comma_sep_aux print_blocklabel_aux com_frag;
+      pps "}"
+    ) bls;
+    pps ": ";
+    begin match phi with
+      | PhiInf   -> pps "_" 
+      | PhiExp e -> print_exp_aux 0 fmt e
+    end
+    
   let print_decl_aux fmt g =
     begin match g with
       | Gvdecl d -> print_gdecl_aux fmt d.elt
       | Gmdecl m -> print_mdecl_aux fmt m
       | Gsdecl s -> print_sdecl_aux fmt s.elt
+      | Commutativity gcoms ->
+         pp_print_string fmt "{";
+         print_list_aux fmt (fun fmt -> pp_print_string fmt ";"; pp_print_space fmt ()) print_group_commute_aux gcoms;
+         pp_print_string fmt "}"
     end
 
   let print_prog_aux fmt p =
@@ -356,7 +406,9 @@ module AstPP = struct
 
   let print_exp (e:exp node) : unit = print (print_exp_aux 0) e
   let string_of_exp (e:exp node) : string = (string_of (print_exp_aux 0) e) |> Util.replace "\r" " " |> Util.replace "\n" " "
-
+  let string_of_args args : string = 
+    string_of print_arglist_aux args |> Util.replace "\r" " " |> Util.replace "\n" " "
+  
   let print_ty (t:ty) : unit = print print_ty_aux t
   let string_of_ty (t:ty) : string = string_of print_ty_aux t
 
@@ -434,7 +486,7 @@ module AstML = struct
     raise @@ NotImplemented "string_of_tmethod"
 
   let string_of_method_variant (mv : method_variant) : string =
-    raise @@ NotImplemented "string_of_method_variant"
+   "" (* TODO: implement this *)
 
   let rec string_of_exp_aux (e: exp) : string =
     begin match e with 
@@ -521,6 +573,27 @@ module AstML = struct
       sp "Assume (%s)" (string_of_exp e)
     | Havoc id ->
       sp "Havoc %s" (string_of_id id)
+    | SBlock (bl, b) -> 
+      sp "SBlock (%s, %s)" (string_of_option string_of_blocklabel bl) (string_of_block b)
+    | GCommute (var,phi,pre,bl,post) -> 
+      sp "GCommute (%s, %s, %s, %s, %s)"
+        begin match var with
+        | CommuteVarSeq -> "CommuteVarSeq"
+        | CommuteVarPar -> "CommuteVarPar"
+        end
+        begin match phi with 
+        | PhiInf   -> "PhiInf" 
+        | PhiExp e -> sp "PhiExp (%s)" (string_of_exp e)
+        end
+        (string_of_exp pre)
+        (string_of_list string_of_block bl)
+        (string_of_exp post)
+    | SendDep (id, vars) ->
+      sp "SendDep (%d: %s)" id (string_of_args vars)
+    | SendEOP (id) ->
+      sp "SendEOP (%d)" id
+    | Require e ->
+      sp "Require (%s)" (string_of_exp e)
 
   and string_of_stmt (s:stmt node) : string =
     string_of_node string_of_stmt_aux s
@@ -528,7 +601,11 @@ module AstML = struct
   and string_of_block (b:block node) : string =
     string_of_list string_of_stmt b.elt
 
-  let string_of_args : (ty * id) list -> string =
+  and string_of_blocklabel (bl: blocklabel) : string = 
+    let (id, explist) = bl in
+    sp "(%s,%s)" (string_of_id id) (string_of_option (string_of_list string_of_exp) explist)
+
+  and string_of_args : (ty * id) list -> string =
     string_of_list (fun (t,i) ->
       sp "(%s,%s)" (string_of_ty t) (string_of_id i))
 
@@ -557,10 +634,19 @@ module AstML = struct
   let string_of_sdecl (s:sdecl node) : string =
     string_of_node string_of_sdecl_aux s
 
+  let string_of_group_commute (gc: group_commute node) : string =
+    let (bls, phi) = gc.elt in 
+    sp "(%s, %s)" (string_of_list (string_of_list string_of_blocklabel) bls) 
+    begin match phi with 
+      | PhiInf   -> "PhiInf" 
+      | PhiExp e -> sp "PhiExp (%s)" (string_of_exp e)
+    end
+
   let string_of_decl : decl -> string = function
     | Gvdecl d -> sp "Gvdecl (%s)" (string_of_gdecl d)
     | Gmdecl m -> sp "Gmdecl (%s)" (string_of_mdecl m)
     | Gsdecl s -> sp "Gsdecl (%s)" (string_of_sdecl s)
+    | Commutativity gc -> sp "Commutativity (%s)" (string_of_list string_of_group_commute gc)
 
   let string_of_prog : prog -> string =
     string_of_list string_of_decl
@@ -580,7 +666,7 @@ module AstML = struct
     | VChanR (s, _, _) -> "read_channel(" ^ s ^ ")"
     | VChanW (s, _)    -> "write_channel(" ^ s ^ ")"
 
-    | VHashTable _ -> raise @@ NotImplemented "string_of_value VHashTable"
+    | VHashTable _ -> "string_of_value VHashTable" (* TODO: implement this *)
 
     | VStruct (id,vs) ->
       List.map (fun (i,v) -> sp " %s = %s" i (string_of_value !v)) vs |>

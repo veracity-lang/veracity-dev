@@ -78,6 +78,8 @@ let loc (startpos:Lexing.position) (endpos:Lexing.position) (elt:'a) : 'a node =
 %token PURE
 
 %token ASSERT ASSUME HAVOC
+%token COMMUTATIVITY
+%token PRE POST
 
 %token UNDERSCORE
 
@@ -135,6 +137,14 @@ decl:
     }) }
   | STRUCT sname=UIDENT LBRACE fields=separated_list(SEMI, decl_field) RBRACE 
     { Gsdecl (loc $startpos $endpos {sname; fields}) }
+  | COMMUTATIVITY LBRACE gc = separated_list(SEMI,group_commute) RBRACE { Commutativity(gc) }
+
+group_commute:
+  | bls = separated_list(COMMA, commute_frag) COLON phi=commute_condition {loc $startpos $endpos @@ (bls,phi) }
+
+commute_frag:
+  /*| f = block_label {f}*/
+  | LBRACE fl=separated_list(COMMA, block_label) RBRACE {fl}
 
 (*(*%inline*) pure:
   | PURE { true }
@@ -254,6 +264,18 @@ stmt:
   | ASSERT e=exp SEMI { loc $startpos $endpos @@ Assert e }
   | ASSUME e=exp SEMI { loc $startpos $endpos @@ Assume e }
   | HAVOC i=IDENT SEMI { loc $startpos $endpos @@ Havoc i }
+  | b=block  { loc $startpos $endpos @@ SBlock(None,b) }
+  | bl=block_label COLON b=block { loc $startpos $endpos @@ SBlock(Some bl,b) }
+  | variant=commute_variant phi=commute_condition
+    LBRACE PRE COLON pre=exp blocks=nonempty_list(block) POST COLON post=exp RBRACE
+    { loc $startpos $endpos @@ GCommute(variant,phi,pre,blocks,post) }
+
+block_label:
+  | i=IDENT { (i, None) }
+  | i=IDENT LPAREN il=separated_list(COMMA,exp) RPAREN { (i, Some il) }
+  
+label:
+  | i=IDENT {i}
 
 %inline commute_variant:
   | COMMUTE_SEQ { CommuteVarSeq }

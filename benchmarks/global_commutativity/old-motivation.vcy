@@ -1,0 +1,35 @@
+commutativity {
+    {f1(i_1)}, {f2(i_2,x)}: ((i_2 != i_1) && !(1 == x) || 1 == x)
+}
+
+int main(int argc, string[] argv) {
+    int scalingfactor = int_of_string(argv[1]);
+    int x = int_of_string(argv[2]);
+    int[] arr = new int[1000];
+    int i = 0;
+    int j = 0;
+    int i_1 = 0;
+    int i_2 = 2;
+    int res = 0;
+    
+    while (j < 1000) {
+        arr[j] = random(0, 1000);
+        j = j + 1;
+    }
+
+    while (i < 1000) {
+        f1(i): {
+            busy_wait(scalingfactor); 
+            arr[i] = arr[i] + 1;
+        }
+        f2(i,x): {
+            arr[i] = arr[i] * x; 
+            busy_wait(scalingfactor);
+        }
+
+        busy_wait(scalingfactor);
+        i = i + 1;
+    }
+
+    return arr[0];
+}

@@ -1,0 +1,71 @@
+commutativity {
+    {f1(tbl,x,y)}, {f2(tbl,z,y)}: (tbl[z] == tbl[x] && !(z == x) || z == x);
+    {f2(tbl,z,y)}, {f3(tbl,z,y)}: (!(ht_size(tbl) > 0) && !(0 == z) || 0 == z);
+    {f4(files,i_1)}, {f4(files,i_2)}: (files[i_2] == files[i_1]);
+    {f4(files,i_1)}, {f6(files,i_3)}: (!(i_3 == i_1));
+    {f1(tbl,x,y)}, {f3(tbl,z,y)}: (!(ht_size(tbl) > 0) && !(0 == ht_size(tbl)) && !(0 == z) || 0 == ht_size(tbl) && !(0 == z) || 0 == z);
+    {f1(tbl,x,y)}, {f4(files,i_1)}: (true);
+    {f1(tbl,x,y)}, {f6(files,i_3)}: (true);
+    {f2(tbl,z,y)}, {f4(files,i_1)}: (true);
+    {f2(tbl,z,y)}, {f6(files,i_3)}: (true);
+    {f3(tbl,z,y)}, {f4(files,i_1)}: (true);
+    {f3(tbl,z,y)}, {f6(files,i_3)}: (true)
+} 
+
+int main(int argc, string[] argv) {
+	hashtable[int,int] tbl = new hashtable[int,int];
+	int n = 1000 * int_of_string(argv[1]);
+	int x = 2;
+	int y = 5;
+	int z = 0;
+    int f = 1;
+    int g = 0;
+    int i = 0;
+    int i_1 = 3;
+    int i_2 = 3;
+    int i_3 = 4;
+    int j = 0;
+
+    int[] files = new int[10];
+
+    tbl[x] = 12;
+	tbl[z] = 12;
+	
+    while(j < 10) {
+        files[j] = j;
+        j = j + 1;
+    }
+	
+    f1(tbl,x,y):{ 
+        busy_wait(n);
+        if(ht_mem(tbl, x)) { 
+            y = ht_get(tbl, x);
+        }
+    }
+    f2(tbl,z,y): {
+        y = ht_get(tbl, z);
+        busy_wait(n);
+    }
+	f3(tbl,z,y): { 	
+        busy_wait(n);
+        if(ht_size(tbl) > 0) { 
+            y = y + z;
+        }
+	}
+
+    f4(files,i):{ 
+        busy_wait(n);
+        f = files[i];
+        f = f + 5;
+        files[i] = f;
+    }
+
+    f6(files,i):{ 
+        busy_wait(n);
+        g = files[i];
+        g = g + 5;
+        files[i] = g;
+    }
+
+	return 0;
+}

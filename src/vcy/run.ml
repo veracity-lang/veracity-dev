@@ -134,16 +134,22 @@ module RunInterp : Runner = struct
 
   let prover_name = ref ""
   let timeout = ref None
+  let dswp_mode = ref false
+  (* let no_named_blocks = ref false *) (* TODO *)
 
   let speclist =
     [ "-d",      Arg.Set debug, " Display verbose debugging info during interpretation"
     ; "--debug", Arg.Set debug, " Display verbose debugging info during interpretation"
+    ; "--codegen", Arg.Set Exe_pdg.codegen, " Output generated .c file"
     ; "--force-sequential", Arg.Set force_sequential, " Force all commutativity blocks to execute in sequence"
     ; "--time", Arg.Set get_execution_time, " Output execution time instead of main's return"
     ; "--verbose", Arg.Set Servois2.Util.verbosity, "Servois2 verbose output"
     ; "--very-verbose", Arg.Set Servois2.Util.very_verbose, " Very verbose output and print smt query files"
-    ; "--prover", Arg.Set_string prover_name, "<name> Use a particular prover (default: CVC4)"
-    ; "--timeout", Arg.Float (fun f -> timeout := Some f), "<name> Set timeout for servois2 queries"
+    ; "--prover", Arg.Set_string prover_name, " <name> Use a particular prover (default: CVC4)"
+    ; "--timeout", Arg.Float (fun f -> timeout := Some f), " <name> Set timeout for servois2 queries"
+    ; "--dswp", Arg.Set dswp_mode, " Enable PS-DSWP Interpretation"
+    ; "--threads", Arg.Int (fun i -> Interp.pool_size := i), " Set number of threads for DSWP mode (default: 8)"
+    (* ; "--no-named-blocks", Arg.Set no_named_blocks, " Deal with named blocks as the normal blocks" *)
     ] |>
     Arg.align
 
@@ -159,7 +165,7 @@ module RunInterp : Runner = struct
   let interp prog_name argv =
     try
       if !debug then begin
-        Interp.debug_display := true;
+        Util.debug := true;
         Interp.emit_inferred_phis := true;
         Printexc.record_backtrace true
       end;
@@ -168,13 +174,24 @@ module RunInterp : Runner = struct
         Interp.force_sequential := true;
       end;
 
+      if !dswp_mode then begin
+        Interp.dswp_mode := true;
+      end;
+
+      if Util.contains_substring prog_name "simple-io" then begin 
+        Util.manual_dependency := true; (* TODO: rm later after add support for filesys deps *)
+      end
+      else begin 
+        Util.manual_dependency := false;
+      end;
+
       let prog = Driver.parse_oat_file prog_name in
       Random.self_init ();
 
       begin if !get_execution_time then
         let time = Interp.interp_prog_time prog argv in
         Printf.printf "%f\n" time
-      else
+      else 
         let ret = Interp.interp_prog prog argv in
         Printf.printf "Return: %Ld\n" ret
       end;
@@ -201,7 +218,7 @@ module RunInterp : Runner = struct
 
 end
 
-
+(*
 module RunTranslate : Runner = struct
   let usage_msg exe_name =
     "Usage: " ^ exe_name ^ " translate [<flags>] <vcy program>"
@@ -249,7 +266,53 @@ module RunTranslate : Runner = struct
     | _ -> Arg.usage speclist (usage_msg Sys.argv.(0))
 
 end
+*)
 
+module RunCompile : Runner = struct
+  let usage_msg exe_name =
+    "Usage: " ^ exe_name ^ " compile [<flags>] <vcy program>"
+  
+  let debug = ref false
+
+  let output_file = ref ""
+  (* let output_dir = ref "" *)
+
+  let anons = ref []
+
+  let anon_fun (v : string) =
+    anons := v :: !anons
+
+  let get_execution_time = ref false
+
+  let speclist =
+    [ "-d",      Arg.Set debug, " Display verbose debugging info during interpretation"
+    ; "--debug", Arg.Set debug, " Display verbose debugging info during interpretation"
+    ; "-o",      Arg.Set_string output_file, "<file> Output generated C file."
+    ; "--time", Arg.Set get_execution_time, " Output execution time instead of main's return"
+    ] |>
+    Arg.align
+
+  let compile_prog p = begin 
+    (* 1. Construct the PDG *)
+    print_endline "run.ml RunCompile compile_prog: todo";
+    (* 2. SCC, thread partitioning, construct task objects, etc (Parisa TODO) *)
+
+    (* 3. Code generation: from Tasks to C *)
+    (*      (will use Codegen_c c_of_prog) *)
+    Exe_pdg.codegen := true;
+    print_endline ("emitted "^(!output_file)^", which can now be compiled")
+  end
+
+  let run () =
+
+    Arg.current := 1;
+    Arg.parse speclist anon_fun (usage_msg Sys.argv.(0));
+    let anons = List.rev (!anons) in
+    match anons with
+    | prog :: _ -> compile_prog prog
+    | _ -> Arg.usage speclist (usage_msg Sys.argv.(0))
+
+end
 
 module RunInterface : Runner = struct
   let usage_msg exe_name =
@@ -463,8 +526,11 @@ module RunInfer : Runner = struct
   let infer_phis prog_name =
     if !debug then begin
       Printexc.record_backtrace true;
-      Interp.debug_display := true;
+      Util.debug := true;
     end;
+
+    (* This will enable inference of global commutativity specs *)
+    (* Interp.dswp_mode := true; *)
 
     Interp.time_servois := !time_servois;
     Interp.emit_inferred_phis := true; (*not @@ !Interp.time_servois;*)
@@ -475,7 +541,7 @@ module RunInfer : Runner = struct
     let open Ast in
     if !output_file != "" then begin
       let gmdecls = List.map (fun (name, tmethod) -> Gmdecl(no_loc @@ mdecl_of_tmethod name tmethod)) env.g.methods in
-      let prog' = gmdecls @ List.filter (function Gvdecl _ | Gsdecl _ -> true | Gmdecl _ -> false) prog in
+      let prog' = gmdecls @ List.filter (function Gvdecl _ | Gsdecl _ -> true | Gmdecl _ | Commutativity _ -> false) prog in
       let translated_prog = Ast_print.AstPP.string_of_prog prog' in
       let out_chan = open_out !output_file in
       output_string out_chan translated_prog;
@@ -539,7 +605,7 @@ module RunVerify : Runner = struct
   let verify prog_name =
     if !debug then begin
       Printexc.record_backtrace true;
-      Interp.debug_display := true;
+      Util.debug := true;
     end;
 
     Interp.emit_inferred_phis := true;
@@ -576,7 +642,8 @@ type command =
   | CmdPhi (* Generate commutativity condition *)
   | CmdInfer (* Infer commute conditions *)
   | CmdVerify
-  | CmdTranslate
+  (* | CmdTranslate *)
+  | CmdCompile (* Compile to C program implementing global commutativity PDG-base SWP *)
 
 let command_map =
   [ "help",      CmdHelp
@@ -588,7 +655,8 @@ let command_map =
   (*; "phi",       CmdPhi*)
   ; "infer",     CmdInfer
   ; "verify",    CmdVerify
-  ; "translate", CmdTranslate
+  (* ; "translate", CmdTranslate *)
+  ; "compile",   CmdCompile
   ]
 
 let runner_map : (command * (module Runner)) list =
@@ -599,7 +667,8 @@ let runner_map : (command * (module Runner)) list =
   (*; CmdPhi,       (module RunPhi)*)
   ; CmdInfer,     (module RunInfer)
   ; CmdVerify,    (module RunVerify)
-  ; CmdTranslate, (module RunTranslate)
+  (* ; CmdTranslate, (module RunTranslate) *)
+  ; CmdCompile,   (module RunCompile)
   ]
 
 let display_help_message exe_name = 
@@ -613,7 +682,8 @@ let display_help_message exe_name =
     (*"  phi         Generate commutativty condition between two methods\n" ^*)
     "  infer       Infer and emit all blank commutativity conditions\n" ^
     "  verify      Verify all provided commutativity conditions\n" ^
-    "  translate   Translate program to C\n "
+    (* "  translate   Translate program to C\n "^ *)
+    "  compile     Compile (to C) via global commutativity and task parallelism\n "
   in Printf.eprintf "Usage: %s <command> [<flags>] [<args>]\n%s" exe_name details
 
 (* Check first argument for command *)

@@ -1,0 +1,29 @@
+- Model IO as 
+    - realWorld_data Int (handle) -> (Int (line num) -> String (values))
+    - realWorld_linenum Int (handle) -> Int (current line num)
+    - realWorld_mapping String (filename) -> Int (handle)
+- Have a static counter that increments every open channel call so we always get a new handle
+    - realWorld_handles
+
+precondition:
+realWorld_handles > 0
+
+open_read / open_write(filename)
+(and (= realWorld_handles_post (+ 1 realWorld_handles_pre))
+     (= 0 (select realWorld_handles_pre realWorld_linenum_post))
+     (= realWorld_mapping_post (store filename realWorld_handles_pre realWorld_mapping_pre)))
+
+write_line(chan, s)
+postcond:
+(and (= realWorld_data_post (store chan (store (select chan realWorld_linenum_pre) s (select chan realWorld_data_pre)) realWorld_data_pre)) 
+     (= realWorld_linenum_post (store chan (select chan realWorld_linenum_pre) realWorld_linenum_pre)))
+
+     
+     
+for state_equal:
+    have a set of open handles associated with filenames
+    precondition that file name has not been opened
+assume filenames are given as integers not as strings (use ocaml to turn strings into unique integers -- keep a translation table)
+
+int FN_ROOT_FOO = 1;
+filename ROOT_FOO = 1;

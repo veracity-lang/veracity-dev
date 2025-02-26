@@ -1,0 +1,45 @@
+commutativity {
+    {f1(i_1, x, arr)}, {f2(i_2, arr)}: ((i_1 != i_2) || (i_1 == i_2 && arr[i_1] > 0))
+}
+
+int main(int argc, string[] argv) {
+    int scalingfactor = int_of_string(argv[1]);
+    int x = 10;
+    int[] arr = new int[1000];
+    int size = int_of_string(argv[2]);
+    int[] out = new int[size];
+    int i = 0;
+    int j = 0;
+    int i_1 = 0;
+    int i_2 = 2;
+    int res = 0;
+    int t = 0;
+    
+    while (j < 1000) {
+        arr[j] = random(1, 1000);
+        j = j + 1;
+    }
+
+    while (i < size) {
+        f1(i, x, arr):{ /* will only increase arr[i] */
+            busy_wait(scalingfactor); 
+            x = i;
+            arr[i] = arr[i] + (x*x);
+        }
+
+        f2(i, arr):{ /* only observes if arr[i]>0 */
+            t = /*compute*/(i);
+            busy_wait(scalingfactor);
+            if (arr[i] > 0 && t < 0) {
+                arr[i] = arr[i] - 1; 
+                out[i] = /*calc2*/(t);
+            } else {
+                out[i] = /*calc3*/(t);
+            }
+        }
+        
+        i = i + 1;
+    }
+
+    return arr[0];
+}

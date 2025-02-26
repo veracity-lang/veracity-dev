@@ -15,7 +15,7 @@ let rec c_of_ty = function
     | TBool -> "bool" (* TODO: Not ansi C. can use int, or stdbool.h? *)
     | TStr -> "const char*"
     | TArr(ty) -> sp "%s*" (c_of_ty ty)
-    | THashTable(kty, vty) -> raise @@ NotImplemented "c_of_ty THashTable"
+    | THashTable(kty, vty) -> "<<THashtable stmt>>" (*raise @@ NotImplemented "c_of_ty THashTable"*)
     | TChanR -> raise @@ NotImplemented "c_of_ty TChanR"
     | TChanW -> raise @@ NotImplemented "c_of_ty TChanW"
     | TStruct(id) -> raise @@ NotImplemented "c_of_ty TStruct"
@@ -27,8 +27,8 @@ and c_of_exp = function
     | CInt(i) -> Int64.to_string i (* ^ "L" *)
     | CStr(s) -> sp "\"%s\"" s
     | CArr(ty, e) -> raise @@ NotImplemented "c_of_exp CArr"
-    | NewArr(ty, e) -> raise @@ NotImplemented "c_of_exp NewArr"
-    | NewHashTable(var, kty, vty) -> raise @@ NotImplemented "c_of_exp NewHashTable"
+    | NewArr(ty, e) -> "<<new array stmt>>" (*raise @@ NotImplemented "c_of_exp NewArr"*)
+    | NewHashTable(var, kty, vty) -> "<<new hashtable stmt>>" (*raise @@ NotImplemented "c_of_exp NewHashTable"*)
     | Id(id) -> (!mangle id)
     | Index(arr, idx) -> sp "(%s[%s])" (c_of_expnode arr) (c_of_expnode idx)
     | CallRaw(id, es) -> sp "(%s(%s))" id (String.concat ", " @@ List.map c_of_expnode es)
@@ -61,6 +61,8 @@ and c_of_stmt = function
     | Commute(var, phi, bodies) -> !handle_comm phi bodies
     | Havoc(id) -> sp "/* %s = __VERIFIER_nondet_int() */" (!mangle id)
     | Assume(e) -> sp "/* assume%s */" (c_of_expnode e)
+    | SBlock(blocklabel,block) -> sp "%s" (c_of_blocknode block) (* TODO: check *)
+    | _ -> raise @@ NotImplemented "c_of_stmt: unimplemented."
 and c_of_stmtnode x = c_of_stmt x.elt
 and c_of_block b = let indent_pre = !indent in 
     indent := indent_pre + 4;
@@ -76,7 +78,7 @@ and handle_comm = ref ultimate_comm (* TODO: Default this to sequential; is like
 
 and mangle = ref Fun.id
 
-and ultimate_comm phi (left :: right :: []) =
+and [@warning "-8"] ultimate_comm phi (left :: right :: []) =
     let mangle_temp = !mangle in
     let acc = ref "" in
     let (^=) l r = l := !l ^ r in
@@ -104,6 +106,7 @@ let c_of_decl = function
     | Gvdecl(dnode) -> let d = dnode.elt in sp "%s %s %s;" (c_of_ty d.ty) d.name (c_of_expnode d.init)
     | Gmdecl(dnode) -> let d = dnode.elt in sp "%s %s(%s) %s" (c_of_ty d.mrtyp) d.mname (String.concat ", " @@ List.map (fun (ty, id) -> sp "%s %s" (c_of_ty ty) id) d.args) (c_of_blocknode d.body)
     | Gsdecl(d) -> raise @@ NotImplemented "c_of_decl Gsdecl"
+    | Commutativity(_) -> raise @@ NotImplemented "c_of_decl: Commutativity."
 
 let c_of_prog prog =
     String.concat "\n\n" @@ List.map c_of_decl prog

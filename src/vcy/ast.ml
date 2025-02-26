@@ -64,7 +64,8 @@ let rec sty_of_ty = function
   | TBool -> Smt.TBool
   | TStr -> Smt.TString
   | TArr t -> Smt.TArray (Smt.TInt, sty_of_ty t)
-  | _ -> raise @@ NotImplemented "Conversion to Servois type not supported"
+  | TChanR | TChanW -> Smt.TString (* A channel is represented by the string representing the directory it accesses. *)
+  | sty -> raise @@ NotImplemented "Conversion to Servois type not supported"
 
 
 type sht_ids = { ht : id; keys : id; size : id }
@@ -76,6 +77,7 @@ type ety =
   | ETStr of id
   | ETArr of id * sty
   | ETHashTable of sty * sty * sht_ids
+  | ETChannel of id
 
 type arglist = ty bindlist
 
@@ -139,28 +141,47 @@ and stmt =
 | Assume of exp node
 | Havoc of id
 | Require of exp node
+| SBlock of blocklabel option * block node
+| GCommute of commute_variant * commute_condition * commute_pre_cond * block node list * commute_post_cond
+| SendDep of int * ((ty * id) list) (* only for dependency of tasks *)
+| SendEOP of int
+
+and commute_pre_cond = exp node 
+
+and commute_post_cond = exp node
 
 and tyval = ty * (value ref)
 
 and blockstk = tyval bindlist list
 and callstk = blockstk list
 
+(* and blocklabel = id * (id list) option *)
+and blocklabel = id * (exp node list) option
+
+and group_commute = ((blocklabel list) list) * commute_condition
+
+(* and commute_frag = 
+| Blabel of blocklabel 
+| Blablel of blocklabel list *)
 
 and global_env =
   { methods : tmethod bindlist
   ; globals : tyval bindlist
   ; structs : tstruct bindlist
-  ; lib_methods : lib_method bindlist
+  ; lib_methods : lib_method bindlist 
+  ; group_commute : group_commute node list (* Global Commutativity relations *)
   }
 and env =
   { g : global_env  (* Global environment *)
   ; l : callstk     (* Local environment *)
+  ; tid : int option
   }
-and lib_method =
+and [@warning "-30"] lib_method = (* complains that "pure" is also defined in tmethod *)
   { pure : bool
   (*; spec : method_spec *) (* TODO reintroduce *)
   ; func : env * value list -> env * value
-  ; pc : (int * ety * sexp list -> post_condition) option
+  ; ret_ty : ty
+  ; pc : (int * int * ety * sexp list -> post_condition) option
   }
 
 and post_condition =
@@ -169,6 +190,7 @@ and post_condition =
   ; asserts  : sexp list                (* Any additional assertions made *)
   ; terms    : (sexp * sty) list        (* Terms *)
   ; preds    : (string * (sty list)) list (* Any particular predicates *)
+  ; updates_rw : bool (* Does the method update the realWorld SMT variables *)
   }
 
 (*and method_spec = (* TODO For inlining procedure *)
@@ -200,7 +222,7 @@ type embedding_map = (ty binding * ety) list
 
 
 let mangle_servois_id id index =
-  Smt.EVar (Var (id ^ "_" ^ string_of_int index))
+  Smt.EVar (Var (id ^ (if index = 0 then "" else "_" ^ string_of_int index)))
 
 let mangle_servois_id_pair id index =
   mangle_servois_id id index, mangle_servois_id id (index + 1)
@@ -216,6 +238,14 @@ let rec string_of_sty = function
   | Smt.TSet t -> sp "(Set %s)" (string_of_sty t)
   | _ -> failwith "string_of_sty"
   (* | STGen g -> g *) (* TODO: we need this? *)
+
+let string_of_ety = function
+  | ETInt id -> "ETInt " ^ id
+  | ETBool id -> "ETBool " ^ id
+  | ETStr id -> "ETString " ^ id
+  | ETArr(id, sty) -> "ETArr(" ^ id ^ ", " ^ string_of_sty sty ^ ")"
+  | ETHashTable(sty, sty', sht_ids) -> "ETHashTable(" ^ string_of_sty sty ^ ", " ^ string_of_sty sty' ^ ", " ^ "{ ht : " ^ sht_ids.ht ^"; keys : " ^ sht_ids.keys ^ "; size : " ^ sht_ids.size ^ " }"
+  | ETChannel id -> "ETChannel " ^ id
 
 (*
 (*** Inlining analysis types ***)
@@ -267,13 +297,14 @@ and aseq = astmt list
 type gdecl = { name : id; ty : ty; init : exp node }
 
 type mdecl = { pure : bool; mrtyp : ty; mname : id; args : (ty * id) list; body : block node }
-let mdecl_of_tmethod name (t : tmethod) = { pure = t.pure; mrtyp = t.rty; mname = name; args = List.map flip t.args; body = t.body }
+let mdecl_of_tmethod name (t : tmethod) = { pure = t.pure; mrtyp = t.rty; mname = name; args = List.map swap t.args; body = t.body }
 (*type fdecl = { frtyp : ty; fname : id; args : (ty * id) list; body : exp node }*)
 
 type field = { field_name : id; ftyp : ty }
 type sdecl = { sname : id; fields : field list }
 
 type decl =
+| Commutativity of group_commute node list
 | Gvdecl of gdecl node (* Global variable *)
 | Gmdecl of mdecl node (* Method *)
 | Gsdecl of sdecl node (* Struct *)
@@ -362,25 +393,24 @@ let htdata_of_value : value -> value Hashtables.htdata =
   | VInt i -> Hashtables.HTint (Int64.to_int i)
   | v -> Hashtables.HTD v
 
-
-let init_mangle : ety -> Smt.exp Smt.bindlist =
-  let [@warning "-8"] bind i =
-    let Smt.EVar mangled = (mangle_servois_id i 1) in
+let init_mangle_id : id -> Smt.exp Smt.binding = fun i ->
+  let [@warning "-8"] Smt.EVar mangled = (mangle_servois_id i 1) in
     (mangled, Smt.EVar (Var i))
-  in function
-  | ETInt i | ETBool i | ETStr i | ETArr (i, _) ->
-    [bind i]
+  
+let init_mangle : ety -> Smt.exp Smt.bindlist = function
+  | ETInt i | ETBool i | ETStr i | ETArr (i, _) | ETChannel i ->
+    [init_mangle_id i]
   | ETHashTable (_,_,{ht;keys;size}) ->
-    List.map bind [ht;keys;size]
+    List.map init_mangle_id [ht;keys;size]
 
-let final_mangle (mangle : int) : ety -> Smt.exp = 
-  let bind i =
+let final_mangle_id : int -> id -> Smt.exp = fun mangle i ->
     Smt.EBop (Eq, (mangle_servois_id_final i), (mangle_servois_id i mangle))
-  in function
-  | ETInt i | ETBool i | ETStr i | ETArr (i, _) ->
-    bind i
+
+let final_mangle (mangle : int) : ety -> Smt.exp = function
+  | ETInt i | ETBool i | ETStr i | ETArr (i, _) | ETChannel i ->
+    final_mangle_id mangle i
   | ETHashTable (_,_,{ht;keys;size}) ->
-    Smt.ELop (And, (List.map bind [ht;keys;size]))
+    Smt.ELop (And, (List.map (final_mangle_id mangle) [ht;keys;size]))
 
 let remove_index (mangled_id: string) : string =
   let r = Str.regexp "_[0-9]+" in 
@@ -395,6 +425,7 @@ let compile_ety_to_sty (id: string) (ty : ety) : (string * sty) list =
   | ETArr (_, sty) -> [(id, Smt.TArray (Smt.TInt, sty))]
   | ETHashTable (styk, styv, {ht=ht_id; keys=ht_keys; size=ht_size}) -> 
     [(ht_id, Smt.TArray (styk, styv)); (ht_keys, Smt.TSet styk); (ht_size, Smt.TInt)]
+  | ETChannel _ -> [(id, Smt.TString)]
 
 
 (** AST to SMT types *)

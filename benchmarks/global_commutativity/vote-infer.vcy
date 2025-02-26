@@ -1,0 +1,88 @@
+/*
+./vcy.exe infer ../benchmarks/global_commutativity/vote-infer.vcy --debug --prover cvc5
+*/
+commutativity {
+   {vote1(voterID_1,proposal_1)}, {vote2(voterID_2,proposal_2)}: _
+}
+
+hashtable[int,int] voter_weight = new hashtable_seq[int,int];
+hashtable[int,int] voter_voted = new hashtable_seq[int,int];
+hashtable[int,int] voter_vote = new hashtable_seq[int,int];
+hashtable[int,int] proposals = new hashtable_seq[int,int];
+int r_vote1 = 0;
+int r_vote2 = 0;
+int voterID = 0;
+int proposal = 0;
+int init = 1;
+int voterID_1 = 0;
+int proposal_1 = 0;
+int voterID_2 = 0;
+int proposal_2 = 0;
+
+int main(int argc, string[] argv) {
+    scalingfactor = int_of_string(argv[1]);
+
+    /* https://docs.soliditylang.org/en/latest/solidity-by-example.html */
+   vote1(voterID/*replicate*/,   proposal):{ 
+        r_vote1 = 0;
+        int weight = ht_get(voter_weight,voterID);
+        if (weight != 0) {
+            r_vote1 = -1;
+        } else {
+            int voted = ht_get(voter_voted,voterID);
+            if(voted == 1) {
+                r_vote1 = -1;
+            } else {
+                ht_put(voter_voted,voterID,init);
+                ht_put(voter_vote,voterID,proposal);
+                int curVotes = ht_get(proposals,proposal);
+                int value = curVotes + weight;
+                ht_put(proposals,proposal,value);
+            }
+        }
+/*
+        Voter storage sender = voters[msg.sender];
+        require(sender.weight != 0, "Has no right to vote");
+        require(!sender.voted, "Already voted.");
+        sender.voted = true;
+        sender.vote = proposal;
+
+        // If `proposal` is out of the range of the array,
+        // this will throw automatically and revert all
+        // changes.
+        proposals[proposal].voteCount += sender.weight;
+*/
+    }
+
+  vote2(voterID,proposal):{
+        r_vote2 = 0;
+        int weight = ht_get(voter_weight,voterID);
+        if (weight != 0) {
+            r_vote2 = -1;
+        } else {
+            int voted = ht_get(voter_voted,voterID);
+            if(voted == 1) {
+                r_vote2 = -1;
+            } else {
+                ht_put(voter_voted,voterID,init);
+                ht_put(voter_vote,voterID,proposal);
+                int curVotes = ht_get(proposals,proposal);
+                int value = curVotes + weight;
+                ht_put(proposals,proposal,value);
+            }
+        }
+/*
+        Voter storage sender = voters[msg.sender];
+        require(sender.weight != 0, "Has no right to vote");
+        require(!sender.voted, "Already voted.");
+        sender.voted = true;
+        sender.vote = proposal;
+
+        // If `proposal` is out of the range of the array,
+        // this will throw automatically and revert all
+        // changes.
+        proposals[proposal].voteCount += sender.weight;
+*/
+    }
+
+}

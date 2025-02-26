@@ -1,0 +1,43 @@
+
+TASK 0
+
+   SendDep(t1, [])
+    SendEOP(t1)
+   ;
+   SendDep(t3, sum)
+    SendEOP(t3)
+
+TASK 1
+  On receive():
+    while(i < 100) {
+        pqFlag[i] = new bool[100];
+        if (pIds[i] < 0) { pIds[i] = i; }
+        i = i + 1;
+    }
+
+    while(p < pSize){
+        id = pIds[p];
+        if(!visited[id % 100]){
+            visited[id % 100] = true;
+
+            row = p; /* "row" should be the dep */
+            q = 0;
+
+            SendDep(t2, q, row)
+        }
+        p = p + 1; 
+    }
+    SendEOP(t2)
+
+TASK 2
+    On receive(q,row):
+            while (q < 99 && !pqFlag[row][q%100]){
+                q = q+1; 
+            }
+            if(q < 100){
+                sum = sum + pValue[row];
+            }
+
+TASK 3
+    On receive(sum):
+        return sum;

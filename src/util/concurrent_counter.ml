@@ -4,17 +4,10 @@ let init () : t =
   ref 0L, Mutex.create ()
 
 let increment ((c, m) : t) =
-  Mutex.lock m;
-  c := Int64.add !c 1L;
-  Mutex.unlock m
+  Mutex.protect m (fun () -> c := Int64.add !c 1L)
 
 let decrement ((c, m) : t) =
-  Mutex.lock m;
-  c := max (Int64.sub !c 1L) 0L;
-  Mutex.unlock m
+  Mutex.protect m (fun () -> c := max (Int64.sub !c 1L) 0L)
 
 let read ((c, m) : t) =
-  Mutex.lock m;
-  let res = !c in
-  Mutex.unlock m;
-  res
+  Mutex.protect m (fun () -> !c)

@@ -1,0 +1,32 @@
+commutativity{
+    {f1(fname_one, fname_two)}, {f2(fname_three, fname_four)} : ((fname_two != fname_three) && (fname_one != fname_four) && (fname_two != fname_four))
+}
+
+int main(int argc, string[] argv) {
+    string dummy = "a.txt";
+	in_channel i = open_read(dummy);
+    out_channel o = open_write(dummy);
+	string fname_one = argv[1];
+	string fname_two = argv[2];
+	string fname_three = argv[3];
+	string fname_four = argv[4];
+	string temp = "";
+    int j = 0;
+    int k = 0;
+    int z = 0;
+	
+	f1(fname_one, fname_two): { 
+        cp(fname_one, fname_two);
+	}
+
+	f2(fname_three, fname_four): { 
+        i = open_read(fname_three);
+        o = open_write(fname_four);
+        temp = read_line(i);
+        write(o, temp);
+        close(i);
+        close(o); 
+    }
+	
+	return 0;
+}

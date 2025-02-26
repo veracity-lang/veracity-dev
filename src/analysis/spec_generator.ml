@@ -15,7 +15,10 @@ let gstates = ref []
 let terms_list = ref []
 let variable_ctr_list = (Hashtbl.create 50)
 
+let realWorld_vars = ["realWorld_data"; "realWorld_linenum"; "realWorld_opened"]
+
 let pre = ref (EConst (CBool true))
+let smt_fn_list = ref []
 
 let sexp_of_sexp_list = function
   | [e] -> e
@@ -34,15 +37,41 @@ let generate_spec_predicates (embedding_vars : (ty binding * ety) list) : Servoi
 
 
 let generate_spec_statesEqual (em_vars : (ty binding * ety) list) : sexp =
-   let exp_list = List.map (fun (n,_) -> Smt.EBop (Eq, EVar (Var n), EVar (VarPost n))) (get_stypes em_vars)
+   (* The particular value of a channel doesn't matter. The equality is handled by the realWorld reasoning below. *)
+   let exp_list = List.map (fun n -> Smt.EBop (Eq, EVar (Var n), EVar (VarPost n))) (List.map fst (get_stypes em_vars) @ realWorld_vars)
    in
    sexp_of_sexp_list exp_list
-
-
+   
+   (* @ 
+      [ Smt.EBop(Eq, EVar (Var "realWorld_opened"), EVar (VarPost "realWorld_opened"))
+      ; 
+      ; EForall([(Var "fname", TString)], 
+        EBop(Imp, 
+          EFunc("member", [EVar(Var("fname")); EVar(Var("realWorld_opened"))]),
+          ELop(And, [
+            EBop(Eq, 
+              EFunc("select", [EVar(Var("realWorld_data")); EFunc("select", [EVar(Var("realWorld_mapping")); EVar(Var("fname"))])]),
+              EFunc("select", [EVar(VarPost("realWorld_data")); EFunc("select", [EVar(VarPost("realWorld_mapping")); EVar(Var("fname"))])])
+            );
+            EBop(Eq, 
+              EFunc("select", [EVar(Var("realWorld_linenum")); EFunc("select", [EVar(Var("realWorld_mapping")); EVar(Var("fname"))])]),
+              EFunc("select", [EVar(VarPost("realWorld_linenum")); EFunc("select", [EVar(VarPost("realWorld_mapping")); EVar(Var("fname"))])])
+            );
+      ])))]) *)
+(* realWorld_opened = realWorld_opened_post and
+   realWorld_Handles = realWOrld_handles_post
+   forall fname : String . fname in realWorld_opened =>
+   let fnum_pre = realWorld_mapping[fname] in
+   let fnum_post = realWorld_mapping[fname] in
+   realWorld_data[fname_pre] = realWorld_data_post[fname] and
+   realWorld_lineNum[fname] = realWorld_linenum_pose[fname]
+*)
 let generate_spec_state (embedding_vars: (ty binding * ety) list) : sty Smt.bindlist = 
     List.concat_map (fun ((id,ty),ety) -> let list_of_sty = compile_ety_to_sty id ety in
                         List.map (fun (id, sty) -> (Smt.Var id, sty)) list_of_sty
-    ) embedding_vars
+    ) embedding_vars @ [ (Var "realWorld_data", Smt.TArray (Smt.TString, Smt.TArray(Smt.TInt, Smt.TString)))
+                       ; (Var "realWorld_linenum", Smt.TArray (Smt.TString, Smt.TInt))
+                       ; (Var "realWorld_opened", Smt.TSet Smt.TString)]
 
 let create_dummy_method (b: block node) : mdecl =
   mIndex := !mIndex + 1;
@@ -121,7 +150,8 @@ let get_exp_terms (e: exp node) : (sexp * ty) list =
 
         (t2, typ2) (* TODO: make sure if it's enough to return *)
 
-      | Call (MethodL (id, {pc=Some pc;_}), el) -> (EConst(CInt 0), TInt) (* TODO: make it work when it doesn't have any involved terms *)
+      | Call (MethodL _, _) 
+      | Call (MethodM _, _) -> (EConst(CInt 0), TInt) (* TODO: make it work when it doesn't have any involved terms *)
       | _ -> failwith "Unknown expression!"
   in
   let _ = get_exp_term e in
@@ -189,15 +219,19 @@ let set_variable_id (var: string) (side: int) (vctrs : (string, int ref) Hashtbl
 let get_postconditions () : sexp =
   let exp_list = ref [] in
   Hashtbl.iter (fun key -> fun value -> 
-                let ((id,ty),ety) = try List.find (fun ((id,ty),_) -> String.equal key id) !gstates with | x -> print_string key; print_newline (); raise x in
-                let final = match ty with 
-                | THashTable (_,_) ->
-                  final_mangle !value ety 
-                | _ -> let var = if !value == 0 then key else (key ^ "_" ^ Int.to_string (!value)) in
-                        Smt.EBop (Eq, EVar (VarPost key), EVar (Var var));
-                in
-                exp_list := !exp_list @ [final]
-                ) variable_ctr_list;
+                if List.mem key realWorld_vars then exp_list := !exp_list @ [final_mangle_id !value key]
+                else
+                match List.find_opt (fun ((id,ty),_) -> String.equal key id) !gstates with
+                | None -> print_string key; print_newline (); raise Not_found
+                | Some ((id,ty),ety) ->
+                  let final = match ty with 
+                  | THashTable (_,_) ->
+                    final_mangle !value ety 
+                  | _ -> let var = if !value == 0 then key else (key ^ "_" ^ Int.to_string (!value)) in
+                          Smt.EBop (Eq, EVar (VarPost key), EVar (Var var));
+                  in
+                  exp_list := !exp_list @ [final]
+                  ) variable_ctr_list;
     sexp_of_sexp_list !exp_list
 
 let reset_to_local_variable_ctrs (old_vctrs : (string * int) list) (new_vctrs : (string, int ref) Hashtbl.t) =
@@ -218,6 +252,17 @@ let make_temp_value_of_htbl (htbl : (string, int ref) Hashtbl.t) : (string * int
   Hashtbl.iter (fun id -> fun index -> temp := !temp @ [(id, !index)] ) htbl;
   ! temp
  
+
+let ty_of_exp e : ty = 
+  match e.elt with
+  | CNull t -> t
+  | CBool _ -> TBool
+  | CInt _ -> TInt
+  | CStr _ -> TStr
+  | Id i -> snd (fst (List.find (fun ((id,t), _) -> String.equal i id) !gstates))
+  | CArr (t,_) -> TArr t
+  | _ -> failwith "undefined exp"
+
 let rec exp_to_smt_exp (e: exp node) (side: int) ?(indexed = true) (vctrs : (string, int ref) Hashtbl.t) : sexp * sexp Smt.bindlist = 
     match e.elt with
     | CBool b -> Smt.EConst (CBool b), []
@@ -249,20 +294,35 @@ let rec exp_to_smt_exp (e: exp node) (side: int) ?(indexed = true) (vctrs : (str
     | Call (MethodL (id, {pc=Some pc;_}), el) -> 
       let args_rtn, args_binds = List.split @@ List.map (fun exp -> exp_to_smt_exp exp right ~indexed vctrs) el in
 
-      let id_value = match (List.hd args_rtn) with | Smt.EVar (Var v) -> v | _ -> failwith "non string var" in     
+      let id_value = match (List.hd args_rtn) with | Smt.EVar (Var v) -> v | _ -> failwith "non string var" in
       let dst_id = remove_index (id_value) in
       let ((_,_),ety) = List.find (fun ((gid,_),_) -> String.equal gid dst_id) !gstates in 
       let embedding_type_index = match (Hashtbl.find_opt vctrs dst_id) with | None -> 0 | Some i -> !i in
       (* let fun_args = (embedding_type_index, ety, List.fold_left (fun acc x -> acc @ [Smt.Smt_ToMLString.exp x]) [] (List.tl args_rtn)) in *)
-      let fun_args = (embedding_type_index, ety, (List.tl args_rtn)) in
+      let rw_version = !(Hashtbl.find vctrs (List.hd realWorld_vars)) in
+      let fun_args = (embedding_type_index, rw_version, ety, (List.tl args_rtn)) in
           
-      let {bindings=binds; ret_exp=rtn; asserts= asts; terms= t; preds = p} = pc fun_args in
+      let {bindings=binds; ret_exp=rtn; asserts= asts; terms= t; preds = p; updates_rw} = pc fun_args in
       
+      begin if updates_rw then List.iter (fun id -> Hashtbl.replace vctrs id (ref(!(Hashtbl.find vctrs id) + 1))) realWorld_vars
+      else () end;
       Hashtbl.replace vctrs dst_id (ref(embedding_type_index + 1)) ; 
       predicates_list := !predicates_list @ (List.map (fun (x,y) -> Smt.PredSig (x,y)) p);
       terms_list := !terms_list @ t;
+      rtn, List.concat args_binds @ binds
+    
+    | Call (MethodL (id, {pc=None; ret_ty; _}), el) -> 
+      let args_rtn, args_binds = List.split @@ List.map (fun exp -> exp_to_smt_exp exp right ~indexed vctrs) el in
+      let args_types = List.map (fun e -> sty_of_ty (ty_of_exp e)) el in 
+      let smt_fn = { name = id ; args= args_types; ret = sty_of_ty ret_ty} in
+      if not (List.mem smt_fn !smt_fn_list) then
+        smt_fn_list := !smt_fn_list @ [smt_fn];
 
-       rtn, List.concat args_binds @ binds
+      EFunc(id, args_rtn), List.concat args_binds
+    | Call (MethodM (id, {rty=rty; _}), el) ->
+      let args_rtn, args_binds = List.split @@ List.map (fun exp -> exp_to_smt_exp exp right ~indexed vctrs) el in
+
+      EFunc(id, args_rtn), List.concat args_binds
     | Ternary(i, t, e) ->
         let f x = exp_to_smt_exp x side ~indexed vctrs in
         let i', i_binds = f i in
@@ -337,17 +397,20 @@ let compile_block_to_smt_exp (genv: global_env) (b : block) =
           let args = List.map (fun exp -> exp_to_smt_exp exp right vctrs) el in
           let args_rtn, args_binds = List.split args in
       
-          let id_value = match (List.hd args_rtn) with | Smt.EVar (Var v) -> v | _ -> failwith "non string var" in
+          let id_value = match (List.hd args_rtn) with | Smt.EVar (Var v) -> v | _ -> failwith "non string var 342" in
           let dst_id = remove_index (id_value) in
           let ((_,_),ety) = List.find (fun ((gid,_),_) -> String.equal gid dst_id) !gstates in 
 
           let embedding_type_index = match (Hashtbl.find_opt vctrs dst_id) with | None -> 0 | Some i -> !i in
-          let fun_args = (embedding_type_index, ety, (List.tl args_rtn)) in
+          let rw_version = !(Hashtbl.find vctrs (List.hd realWorld_vars)) in
+          let fun_args = (embedding_type_index, rw_version, ety, (List.tl args_rtn)) in
                               
-          let {bindings=binds; ret_exp=rtn; asserts= asts; terms= t; preds = p} = pc fun_args in
+          let {bindings=binds; ret_exp=rtn; asserts= asts; terms= t; preds = p; updates_rw} = pc fun_args in
           
           predicates_list := !predicates_list @ (List.map (fun (x,y) -> Smt.PredSig (x,y)) p);
           terms_list := !terms_list @ t;
+          begin if updates_rw then List.iter (fun id -> Hashtbl.replace vctrs id (ref(!(Hashtbl.find vctrs id) + 1))) realWorld_vars
+          else () end;
           Hashtbl.replace vctrs dst_id (ref(embedding_type_index + 1)) ;
 
           bind binds @@ compile_block_to_smt tl vctrs
@@ -390,11 +453,27 @@ let compile_block_to_smt_exp (genv: global_env) (b : block) =
         | _ -> ()
     
   ) !gstates;
+  List.iter (
+    fun [@warning "-8"] id -> 
+          ety_init_list := !ety_init_list @ [init_mangle_id id];
+          if not (Hashtbl.mem variable_ctr_list id) then
+          Hashtbl.add variable_ctr_list id (ref 1) else
+          Hashtbl.replace variable_ctr_list id (ref 1) (* TODO: Don't need to set existing member to 1 in else case? *)
+  ) realWorld_vars;
   let res = compile_block_to_smt b local_variable_ctr_list in
   if (List.length !ety_init_list == 0) then
     res, local_variable_ctr_list
   else
   ELet (!ety_init_list, res), local_variable_ctr_list
+
+let generate_spec_pre_post_condition pre post =
+  let vctrs = variable_ctr_list in
+  match pre, post with 
+  | Some pre, Some post -> (fst @@ exp_to_smt_exp pre right vctrs),(fst @@ exp_to_smt_exp post right vctrs)
+  | None, None -> (Smt.EConst (CBool true)),(Smt.EConst (CBool true))
+  | None, Some post -> (Smt.EConst (CBool true)),(fst @@ exp_to_smt_exp post right vctrs)
+  | Some pre, None -> (fst @@ exp_to_smt_exp pre right vctrs),(Smt.EConst (CBool true))
+  
 
 let generate_method_spec_postcondition (genv: global_env) (b : block) : sexp =
     let block_to_exp, local_variable_ctr_list = (compile_block_to_smt_exp genv b) in
@@ -433,8 +512,17 @@ let compile_method_to_methodSpec (genv: global_env) (m:mdecl) : method_spec =
 
     method_spec
 
-let compile_blocks_to_spec (genv: global_env) (blks: block node list) (embedding_vars : (ty binding * ety) list) =
-  let embedding_vars = List.filter (fun ((id, _),_) -> not (String.equal id "argv") ) embedding_vars in
+let generate_spec_preamble { methods; globals; structs; lib_methods} = Some begin
+  let fun_def_of_method (id, {rty = rty; args = args; _}) =
+    let string_of_ty = compose string_of_sty sty_of_ty in
+    sp "(declare-fun %s (%s) %s)" id (String.concat " " (List.map (compose string_of_ty snd) args)) (string_of_ty rty)
+  in
+  String.concat "\n" @@ List.map fun_def_of_method methods end
+
+  
+
+let compile_blocks_to_spec (genv: global_env) (blks: block node list) (embedding_vars : (ty binding * ety) list) pre post =
+  (* let embedding_vars = List.filter (fun ((id, _),_) -> not (String.equal id "argv") ) embedding_vars in *)
   gstates := embedding_vars;
 
   let predicates = generate_spec_predicates embedding_vars in
@@ -444,10 +532,13 @@ let compile_blocks_to_spec (genv: global_env) (blks: block node list) (embedding
   let mdecls = List.map create_dummy_method blks in
   let methods = List.map (compile_method_to_methodSpec genv) mdecls in
   
-  let preamble = None in 
+  let pre, post = generate_spec_pre_post_condition pre post in
+  (* let pre = ELop(And, [EBop(Eq, EVar (Var "realWorld_opened"), EVar (Var "(as emptyset (Set String))")); pre]) in (* TODO: This is to debug until we have some way of constraining real world *) *)
+
+  let preamble = generate_spec_preamble genv in 
 
   let spec = { name = "test"; preamble = preamble; preds = predicates; state_eq = state_equal;
-              precond = Smt.EConst (CBool true); state = state; methods= methods; smt_fns = []} in
+              precond = pre; postcond = post; state = state; methods= methods; smt_fns = !smt_fn_list} in
   let mnames = List.map (fun ({mname = name; _}) -> name) mdecls 
   in
 

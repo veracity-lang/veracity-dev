@@ -1,7 +1,7 @@
 parallel_singlecore_file = parallel_singlecore.ml
 parallel_multicore_file  = parallel_multicore.ml
 
-ocaml_switch_multicore   = 4.12.0+domains+effects
+ocaml_switch_multicore   =5.2.0+dev10-2024-05-02
 
 parallel_module := $(shell \
 	if [ $(shell ocamlc --version) = $(ocaml_switch_multicore) ]; \

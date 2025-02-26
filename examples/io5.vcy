@@ -1,0 +1,43 @@
+int md5(string input) { return md5_lower(input); }
+string show_int(int i) { return string_of_int(i); }
+
+int main(int argc, string[] argv) {
+	string fname1 = "A.txt";
+	string fname2 = "Amd5";
+	string fname3 = "B.txt";
+	string fname4 = "Bmd5";
+	in_channel i = open_read(fname1);
+	out_channel j = open_write(fname2);
+	in_channel k = open_read(fname3);
+	out_channel l = open_write(fname4);
+	int inttemp = 0;
+	string stringtemp = "";
+	commute (fname1 != fname3 && fname1 != fname4 && fname2 != fname3 && fname2 != fname4) { 
+	/* Inferred condition at ../examples/io5.vcy:[15.2-38.3]: fname3 == fname4 && !(fname1 == fname2) && !(fname3 == fname1) && !(fname4 == fname2) || fname1 == fname2 && !(fname3 == fname1) && !(fname4 == fname2) || fname3 == fname1 && fname4 == fname2
+    61.196591, 61.010748, 0.000000, 9, true 
+    */
+		{ i = open_read(fname1);
+		  stringtemp = read_line(i);
+		  inttemp = md5(stringtemp);
+		  close(i);
+		  j = open_write(fname2);
+		  stringtemp = show_int(inttemp);
+		  write(j, stringtemp);
+		  close(j);
+		  stringtemp = "";
+		  inttemp = 0;
+        }
+		{ k = open_read(fname3);
+		  stringtemp = read_line(k);
+		  inttemp = md5(stringtemp);
+		  close(k);
+		  l = open_write(fname4);
+		  stringtemp = show_int(inttemp);
+		  write(l, stringtemp);
+		  close(l);
+		  stringtemp = "";
+		  inttemp = 0;
+        }
+	}
+	return 0;
+}

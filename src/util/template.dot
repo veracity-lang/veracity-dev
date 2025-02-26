@@ -1,0 +1,33 @@
+digraph G {
+    // Graph style
+    graph [rankdir="TB", fontsize=20, label="Black=CFG, Red=ControlDep, Blue=DataDep", labelloc=t]
+    
+    // Node styles
+    node [shape=box, style="rounded,filled", fontname="Courier", margin=0.05]
+    
+    // Edge styles
+    edge [arrowhead=vee, arrowsize=1, fontname="Courier"]
+    
+    // Nodes
+    "f.vcy:1:1-5" [label="f.vcy:1:1-5\nx:=42;", fillcolor="#d3d3d3"]
+    "f.vcy:2:1-5" [label="f.vcy:2:1-5\nwhile(x>0)", shape="oval", fillcolor="#add8e6"]
+    "f.vcy:3:1-5" [label="f.vcy:3:1-5\nx:=x-1", fillcolor="#d3d3d3"]
+    "f.vcy:5:1-5" [label="f.vcy:5:1-5\nreturn x", fillcolor="#d3d3d3"]
+    
+    // Edges
+    "f.vcy:1:1-5" -> "f.vcy:2:1-5"
+    "f.vcy:2:1-5" -> "f.vcy:3:1-5"
+    "f.vcy:3:1-5" -> "f.vcy:2:1-5"
+    "f.vcy:2:1-5" -> "f.vcy:5:1-5"
+
+    // Control-Dep edges
+    "f.vcy:1:1-5" -> "f.vcy:2:1-5" [color="red", style="dashed"]
+    "f.vcy:2:1-5" -> "f.vcy:3:1-5" [color="red", style="dashed"]
+    "f.vcy:2:1-5" -> "f.vcy:5:1-5" [color="red", style="dashed"]
+
+    // Data-Dep edges
+    "f.vcy:1:1-5" -> "f.vcy:2:1-5" [color="blue", style="dotted"]
+    "f.vcy:2:1-5" -> "f.vcy:3:1-5" [color="blue", style="dotted"]
+    "f.vcy:2:1-5" -> "f.vcy:5:1-5" [color="blue", style="dotted"]
+    "f.vcy:3:1-5" -> "f.vcy:2:1-5" [color="blue", style="dotted"]
+}

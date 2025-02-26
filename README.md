@@ -17,16 +17,19 @@ add-apt-repository ppa:avsm/ppa
 apt update
 apt install opam
 apt install cvc4
+apt install graphviz # optional, for PDG output
 
 opam init
 eval $(opam env)
 
 opam update
-opam switch create 4.12.0mc 4.12.0+domains+effects --repositories=multicore=git+https://github.com/ocaml-multicore/multicore-opam.git,default
-opam switch 4.12.0mc
+#opam switch create 4.12.0mc 4.12.0+domains+effects --repositories=multicore=git+https://github.com/ocaml-multicore/multicore-opam.git,default
+#opam switch 4.12.0mc
+opam switch create 5.2.0
 eval $(opam env)
 
-opam install sexplib ppxlib.0.22.0+effect-syntax ppx_deriving_yaml ounit2 menhir
+#opam install sexplib ppxlib.0.22.0+effect-syntax ppx_deriving_yaml
+opam install ounit2 menhir zarith yaml domainslib
 eval $(opam env)
 ```
 

@@ -43,6 +43,8 @@
   ("hashtable", HASHTABLE);
   ("hashtable_seq", HASHTABLE_SEQ);
   ("hashtable_naive", HASHTABLE_NAIVE);
+  ("pre", PRE);
+  ("post", POST);
 
   (* Symbols *)
   ( ";", SEMI);
@@ -97,6 +99,7 @@
   ("assert", ASSERT);
   ("assume", ASSUME);
   ("havoc", HAVOC);
+  ("commutativity", COMMUTATIVITY);
 
   ("_", UNDERSCORE);
 

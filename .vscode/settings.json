@@ -3,6 +3,8 @@
         "*.smtlib2": "smt-lib",
         "*.vcy": "c",
         "random": "c",
+        "stdlib.h": "c",
+        "string": "c"
         "fetchandadd": "c"
     }
 }

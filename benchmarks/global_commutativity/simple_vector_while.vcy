@@ -1,0 +1,39 @@
+commutativity {
+    {f1(c)}, {f2(c)}: (true)
+}
+
+int main(int argc, string[] argv) {
+    int size = 1000;
+
+    int[] x = new int[size];
+    int[] y = new int[size];
+    int[] z = new int[size];
+    int sum = 0;
+    int i = 0; int j = 0; int k = 0; int m = 0;
+
+    while(i < size) {
+        x[i] = random();
+        i = i + 1;
+    }
+
+    f1:{ 
+        while(j<size) {
+            y[j] = x[j] * x[j];
+            j = j + 1;
+        }
+    }
+    
+    while(k<size) {
+        sum = sum + y[k];
+        k = k + 1;
+    }
+
+    f2:{ 
+        while(m < size) {
+            z[m] = x[size-m];
+            m = m + 1;
+        }
+    }
+    
+    return 0;
+}

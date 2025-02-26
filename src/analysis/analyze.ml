@@ -11,6 +11,7 @@ let rec assoc_servois_ty (id : id) : embedding_map -> ty binding =
     | ETArr (i, _) when id = i -> v
     | ETHashTable (_,_,{ht;keys;size}) 
       when id = ht || id = keys || id = size -> v
+    | ETChannel i when id = i -> v
     | _ -> assoc_servois_ty id t
     end
 
@@ -25,6 +26,7 @@ let generate_embedding_map (vars : ty bindlist) : embedding_map =
       ETHashTable
         ( sty_of_ty tyk, sty_of_ty tyv, 
           { ht = id ; keys = id ^ "_keys"; size = id ^ "_size" })
+    | TChanR | TChanW -> ETChannel id
     | _ -> raise @@ NotImplemented "Unsupported type embedding"
   in
   List.map (fun v -> v, f v) vars
@@ -111,9 +113,9 @@ let rec smt_translation (input: Smt.exp) (embedding: embedding_map) : exp =
 let exp_of_phi (phi : Servois2.Phi.disjunction) (embedding: embedding_map) : exp =
   smt_translation (Servois2.Phi.smt_of_disj phi) embedding
   
-let phi_of_blocks (genv: global_env) (_: commute_variant) (blks: block node list) (vars : ty bindlist) =
+let phi_of_blocks (genv: global_env) (_: commute_variant) (blks: block node list) (vars : ty bindlist) pre post =
   let embedding = generate_embedding_map vars in
-  let [@warning "-8"] spec , [m1;m2] = Spec_generator.compile_blocks_to_spec genv blks embedding
+  let [@warning "-8"] spec , [m1;m2] = Spec_generator.compile_blocks_to_spec genv blks embedding pre post
   in
   Servois2.Choose.choose := Servois2.Choose.poke2;
   let phi, _ = Servois2.Synth.synth ~options:!Util.servois2_synth_option spec m1 m2 in
@@ -121,9 +123,9 @@ let phi_of_blocks (genv: global_env) (_: commute_variant) (blks: block node list
     exp_of_phi phi embedding
   (* Servois2.Choose.choose := Servois2.Choose.poke2; *)
 
-let verify_of_block e genv _ blks vars : bool option * bool option =
+let verify_of_block e genv _ blks vars pre post : bool option * bool option =
   let embedding = generate_embedding_map vars in
-  let [@warning "-8"] spec , [m1;m2] = Spec_generator.compile_blocks_to_spec genv blks embedding in
+  let [@warning "-8"] spec , [m1;m2] = Spec_generator.compile_blocks_to_spec genv blks embedding pre post in
   let cond = (fst @@ Spec_generator.exp_to_smt_exp e 1 Spec_generator.variable_ctr_list) in
   Servois2.Verify.verify spec m1 m2 cond,
   Servois2.Verify.verify ~options:{Servois2.Verify.default_verify_options with ncom = true} spec m1 m2 (EUop(Not, cond))

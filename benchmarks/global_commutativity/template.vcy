@@ -1,0 +1,64 @@
+commutativity {
+    {f1}, {f2}: (tbl[z] == tbl[x] && !(z == x) || z == x);
+    {f2}, {f3}: (!(ht_size(tbl) > 0) && !(0 == z) || 0 == z);
+    {f4(i1)}, {f5(i2)}: (files[i2] == files[i1]);
+    {f4(i1)}, {f6(i3)}: (!(i3 == i1));
+    {f1}, {f4(i1), f5(i2), f6(i3)}: (true)
+} 
+
+
+int main(int argc, string[] argv) {
+	hashtable[int,int] tbl = new hashtable[int,int];
+	int n = int_of_string(argv[1]);
+	int x = int_of_string(argv[2]);
+	int y = int_of_string(argv[3]);
+	int z = int_of_string(argv[4]);
+    int f = int_of_string(argv[5]);
+    int g = int_of_string(argv[6]);
+
+    int[] files = new int[10];
+
+	tbl[x] = 12;
+	tbl[z] = 12;
+	
+	
+    f1:{ 
+        busy_wait(n);
+        if(ht_mem(tbl, x)) { 
+            y = ht_get(tbl, x);
+        }
+    }
+    f2: {
+        y = ht_get(tbl, z);
+        busy_wait(n);
+    }
+	f3: { 	
+        busy_wait(n);
+        if(ht_size(tbl) > 0) { 
+            y = y + z;
+        }
+	}
+    {int i1 = int_of_string(argv[7]);
+    f4(i1):{ 
+        busy_wait(n);
+        f = files[i1];
+        f = f + 5;
+        files[i1] = f;
+    }}
+    {int i2 = int_of_string(argv[8]);
+    f5(i2):{ 
+        f = files[i2];
+        f = f + 5;
+        files[i2] = f;
+        busy_wait(n);
+    }}
+    {int i3 = int_of_string(argv[9]);
+    f6(i3):{ 
+        g = files[i3];
+        g = g + 5;
+        files[i3] = g;
+        busy_wait(n);
+    }}
+
+	return 0;
+}

@@ -1,0 +1,49 @@
+    
+
+int main(int argc, string[] argv) {
+    int[] pIds = new int[100];
+    bool[] visited = new bool[100];
+    int pSize = 100;
+    /* Each row is a fixed p, variable q */
+    int[] pValue = new int[100];
+    bool[][] pqFlag = new bool[][100];
+    int sum =0;
+    /* initialize pqFlag */
+    int i = 0;
+    int p = 0;
+    int id = 0;
+    int row = 0;
+    int q = 0;
+    int scalingfactor = 1000;
+    scalingfactor = int_of_string(argv[1]);
+
+    /* mutex_init(0); */
+    while(i < 100) {
+        pqFlag[i] = new bool[100];
+        pIds[i] = i;
+        pValue[i] = i;
+        /* if (pIds[i] < 0) { pIds[i] = i; } */
+        i = i + 1;
+    }
+
+    while(p < pSize){
+        id = pIds[p];
+        if(!visited[id % 100]){
+            visited[id % 100] = true;
+
+            row = p; /* "row" should be the dep */
+            q = 0;
+            while (q < 99 && !pqFlag[row][q%100]){
+                busy_wait(scalingfactor);
+                q = q+1; 
+            }
+            if(q < 100){
+                mutex_lock(0);
+                sum = (sum + pValue[row]) % 256;
+                mutex_unlock(0);
+            }
+        }
+        p = p + 1; 
+    }
+    return sum;
+}

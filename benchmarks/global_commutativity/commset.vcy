@@ -1,0 +1,38 @@
+commutativity {
+   {f1(i_1)}, {f1(i_2)} : (i_1 != i_2)
+}
+
+int main(int argc, string[] argv) {
+    int i = 1;
+    string[] digest = new string[16];
+    string s = "";
+    int i_1 = 0;
+    int i_2 = 0;
+    string filename = "";
+
+    while (i < argc){
+        f1(i):{
+            int j = 0;
+            string temp = "";
+            filename = argv[i];
+            while (j < 10) { /* Artificially increase workload by 10x */
+                j = j+1;
+                
+                in_channel c = open_read(filename);
+                s = read_line(c);
+                int j = 0;
+                temp = string_of_int(md5_lower(s));
+            
+                close(c);
+            }
+            digest[i] = temp;
+            print(digest[i]);
+            print("\n");
+        }
+        i = i + 1;
+    }
+
+    return 0;
+}
+
+

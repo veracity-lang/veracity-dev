@@ -13,29 +13,19 @@ module Hashtable_naive = struct
     Mutex.create ()
 
   let mem (tbl, m : _ t) k =
-    Mutex.lock m;
-      let res = Hashtbl.mem tbl k in
-    Mutex.unlock m;
-    res
+    Mutex.protect m (fun () -> Hashtbl.mem tbl k)
 
   let put (tbl, m : _ t) k v = 
-    Mutex.lock m;
+    Mutex.protect m (fun () -> 
       let replaced = Hashtbl.mem tbl k in
       Hashtbl.replace tbl k v;
-    Mutex.unlock m;
-    replaced
+      replaced)
 
   let get (tbl, m : _ t) k = 
-    Mutex.lock m;
-      let res = Hashtbl.find_opt tbl k in
-    Mutex.unlock m;
-    res
+    Mutex.protect m (fun () -> Hashtbl.find_opt tbl k)
 
   let size (tbl, m : _ t) = 
-    Mutex.lock m;
-      let res = Hashtbl.length tbl in
-    Mutex.unlock m;
-    res
+    Mutex.protect m (fun () -> Hashtbl.length tbl)
 end
 
 (*** Hashtable with no locking or concurrent capabilities ***)

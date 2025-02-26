@@ -1,0 +1,40 @@
+commutativity {
+   {f1(i_left)}, {f1(i_right)} : (i_left != i_right)
+}
+
+int main(int argc, string[] argv) {
+    int i = 1;
+    int i_left = 1;
+    int i_right = 1;
+    string[] digest = new string[16];
+
+    while (i < argc){
+        f1(i):{
+            string temp = "";
+            string filename = "";
+            string s = "";
+            int m = md5_lower(s);
+            filename = argv[i];
+            in_channel c = open_read(filename);
+            s = read_line(c);
+            temp = string_of_int(m);
+        
+            close(c);
+            digest[i] = temp;
+            print(digest[i]);
+            print("\n");
+            
+            temp = "";
+            filename = "";
+            s = "";
+            m = 0;
+            c = open_read(temp);
+            close(c);
+        }
+        i = i + 1;
+    }
+
+    return 0;
+}
+
+

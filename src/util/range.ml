@@ -36,6 +36,8 @@ let merge_range (f, s1, e1 as r1 : t) (f', s2, e2 as r2 : t) =
   Printf.sprintf "%s:[%d.%d-%d.%d]" f sl sc el ec*)
 let string_of_range (f, (sl, sc), (el, ec) : t) =
   Printf.sprintf "%s:[%d.%d-%d.%d]" f (sl+1) (sc+1) (el+1) (ec+1)
+let string_of_range_nofn (f, (sl, sc), (el, ec) : t) =
+  Printf.sprintf "[%d.%d-%d.%d]" (sl+1) (sc+1) (el+1) (ec+1)
 
 let ml_string_of_range (f, (sl, sc), (el, ec) : t) =
   Printf.sprintf "(\"%s\", (%d, %d), (%d, %d))" f sl sc el ec

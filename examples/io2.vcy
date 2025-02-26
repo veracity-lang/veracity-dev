@@ -1,0 +1,26 @@
+
+
+int main(int argc, string[] argv) {
+	string[] fnames = new string[3];
+	fnames[0] = "1.txt";
+	fnames[1] = "2.txt";
+	fnames[2] = "3.txt";
+	out_channel i = open_write(fname);
+	out_channel j = open_write(fname);
+	string data1 = "deadbeef";
+	string data2 = "helloworld";
+	string fname1 = "temp1";
+	string fname2 = "temp2";
+	int y = 2;
+	commute _ {
+		{ fname1 = fnames[0];
+          i = open_write(fname1);
+		  write(i, data1);
+          close(i); }
+		{ fname2 = fnames[1];
+          j = open_write(fname2);
+		  write(j, data2);
+		  close(j); }
+	}
+	return 0;
+}
